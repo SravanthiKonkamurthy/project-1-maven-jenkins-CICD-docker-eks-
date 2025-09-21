@@ -1,0 +1,44 @@
+name: CI with SonarQube
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    steps:
+      - name: Checkout SCM
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Clean project
+        run: mvn clean
+
+      - name: SonarQube Code Quality
+        run: mvn sonar:sonar -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.login=$SONAR_TOKEN
+
+      - name: Wait for Quality Gate
+        run: |
+          echo "⏳ Waiting for Quality Gate result..."
+          STATUS=$(curl -s -u $SONAR_TOKEN: "$SONAR_HOST_URL/api/qualitygates/project_status?projectKey=your-project-key" | jq -r '.projectStatus.status')
+          echo "Quality Gate Response: $STATUS"
+          if [ "$STATUS" != "OK" ]; then
+            echo "❌ Pipeline failed due to not meeting SonarQube Quality Gate requirements."
+            exit 1
+          else
+            echo "✅ Quality Gate Passed!"
+          fi
